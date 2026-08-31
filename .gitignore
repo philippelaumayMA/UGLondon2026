@@ -1,0 +1,11 @@
+# macOS
+.DS_Store
+
+# Office lock files, written while a deck is open
+~$*
+
+# Working deck: rewritten by every build task, regenerable from resources/ + tools/
+deck/
+
+# Rendered output
+build/
