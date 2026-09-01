@@ -29,11 +29,13 @@ EXPECTED = [
     ("OWASP", "Title Only"),              # 6  security landscape
     ("RESPONSIBLE AI", None),             # 7  C-9  section 5b
     ("one foundation", "Title Only"),     # 8  three use cases
+    ("RiskIntegrity for IFRS 17 Navigator", "Title Only"),  # 9
+    ("DEMO", "Divider 3 - Short title"),                    # 10
     # --- appendix ---
-    ("Driven by Perspective", None),      # 9  C-2
-    ("Content Foundation", None),         # 10 C-3
-    ("ACTUARIAL AI CURVE", None),         # 11 C-7
-    ("WHY MOODY", None),                  # 12 C-10
+    ("Driven by Perspective", None),      # 11 C-2
+    ("Content Foundation", None),         # 12 C-3
+    ("ACTUARIAL AI CURVE", None),         # 13 C-7
+    ("WHY MOODY", None),                  # 14 C-10
 ]
 
 
