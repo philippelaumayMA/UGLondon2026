@@ -38,11 +38,19 @@ EXPECTED = [
     ("DEMO", "Divider 3 - Short title"),                    # 12
     ("MCP Server", "Title Only"),                           # 13
     ("DEMO", "Divider 3 - Short title"),                    # 14
+    ("Trustworthy, in production", "Title Only"),           # 15 conclusion
     # --- appendix ---
-    ("Driven by Perspective", None),      # 15 C-2
-    ("Content Foundation", None),         # 16 C-3
-    ("ACTUARIAL AI CURVE", None),         # 17 C-7
-    ("WHY MOODY", None),                  # 18 C-10
+    ("Driven by Perspective", None),      # 16 C-2
+    ("Content Foundation", None),         # 17 C-3
+    ("ACTUARIAL AI CURVE", None),         # 18 C-7
+    ("WHY MOODY", None),                  # 19 C-10
+    # --- closing ---
+    ("Thank you", "Back Cover 1"),        # 20
+    # The disclaimer's signature is None deliberately: that slide has zero
+    # shapes of its own, because the legal copy is a fixed shape on the
+    # Disclaimer layout. Slide-level text extraction returns "", so any
+    # signature would fail; the layout name is the real assertion.
+    (None, "Disclaimer"),                 # 21
 ]
 
 
