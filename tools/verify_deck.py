@@ -20,7 +20,8 @@ DECK = "deck/UG_London_2026.pptx"
 
 EXPECTED = [
     # --- spine ---
-    ("Process Automations", None),        # 0  C-1  intro: agentic solutions
+    ("Bringing Trustworthy GenAI to Insurance", "Cover 1"),  # 0  title
+    ("Process Automations", None),        # 1  C-1  intro: agentic solutions
     ("AI Solution Suite", None),          # 1  C-5  intro: the three tiers
     ("Every Stage of AI Maturity", None), # 2  C-4  section 2
     ("in three layers", None),            # 3  C-6  section 3
