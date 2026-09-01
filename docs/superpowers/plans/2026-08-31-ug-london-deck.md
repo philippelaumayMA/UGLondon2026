@@ -16,12 +16,9 @@
 
 - **Slide IDs must be renumbered before any slide is added** (Task 1). The source deck's IDs top out at `2147483646`; python-pptx assigns `max + 1`, so it accepts exactly one new slide and then raises `ValueError: value must be in range 256 to 2147483647`. This is not optional and not recoverable later.
 - **Never call `ml.md.reset_slides`.** It would delete the six reused slides. This deck is edited in place.
-- **Shell preamble for every authoring command:**
-  ```bash
-  export SKILL=/Users/laumayp/.claude/plugins/cache/ibu-life-marketplace/shared-life-beta-ai-skills/0.8.0/skills/implementation-moodys-pptx
-  export MOODYS_ASSETS_DIR=/Users/laumayp/.claude/plugins/data/shared-life-beta-ai-skills-ibu-life-marketplace/moodys-assets
-  ```
-  `MOODYS_ASSETS_DIR` is required because `CLAUDE_PLUGIN_DATA` is unset in a plain shell; without it every icon silently becomes a blue circle.
+- **Shell preamble for every authoring command:** `source tools/env.sh`, which exports
+  `SKILL`, `MOODYS_ASSETS_DIR` and `DYLD_FALLBACK_LIBRARY_PATH`.
+  `MOODYS_ASSETS_DIR` is required because `CLAUDE_PLUGIN_DATA` is unset in a plain shell; without it every icon silently becomes a blue circle. `DYLD_FALLBACK_LIBRARY_PATH` is required on macOS: cairocffi dlopens `libcairo` by bare name and does not search Homebrew's prefix, so `import cairosvg` raises `OSError: no library called "cairo-2" was found` and the authoring command dies mid-slide. Needs `brew install cairo` (present on this machine, 1.18.4).
 - **`ml.set_header_style("h1h2")` once** before authoring; pass every content builder a `subhead`.
 - **Icons on every item-based builder.** Resolve each name with `ml.md.find_icons("keyword")` **before** using it — `shield` and `check` return nothing. Never repeat an icon within a slide.
 - **English only.** The DEVOXX source is French; translate, never paste.

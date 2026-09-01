@@ -22,16 +22,17 @@ EXPECTED = [
     # --- spine ---
     ("Bringing Trustworthy GenAI to Insurance", "Cover 1"),  # 0  title
     ("Process Automations", None),        # 1  C-1  intro: agentic solutions
-    ("AI Solution Suite", None),          # 1  C-5  intro: the three tiers
-    ("Every Stage of AI Maturity", None), # 2  C-4  section 2
-    ("in three layers", None),            # 3  C-6  section 3
-    ("OUR APPROACH", None),               # 4  C-8  section 4
-    ("RESPONSIBLE AI", None),             # 5  C-9  section 5b
+    ("AI Solution Suite", None),          # 2  C-5  intro: the three tiers
+    ("Every Stage of AI Maturity", None), # 3  C-4  section 2
+    ("in three layers", None),            # 4  C-6  section 3
+    ("OUR APPROACH", None),               # 5  C-8  section 4
+    ("OWASP", "Title Only"),              # 6  security landscape
+    ("RESPONSIBLE AI", None),             # 7  C-9  section 5b
     # --- appendix ---
-    ("Driven by Perspective", None),      # 6  C-2
-    ("Content Foundation", None),         # 7  C-3
-    ("ACTUARIAL AI CURVE", None),         # 8  C-7
-    ("WHY MOODY", None),                  # 9  C-10
+    ("Driven by Perspective", None),      # 8  C-2
+    ("Content Foundation", None),         # 9  C-3
+    ("ACTUARIAL AI CURVE", None),         # 10 C-7
+    ("WHY MOODY", None),                  # 11 C-10
 ]
 
 
