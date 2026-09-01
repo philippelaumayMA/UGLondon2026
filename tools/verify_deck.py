@@ -31,11 +31,18 @@ EXPECTED = [
     ("one foundation", "Title Only"),     # 8  three use cases
     ("RiskIntegrity for IFRS 17 Navigator", "Title Only"),  # 9
     ("DEMO", "Divider 3 - Short title"),                    # 10
+    # All three demo cards carry the same on-slide word, so "DEMO" is not a
+    # unique signature -- two swapped demo cards would pass. The unique context
+    # slide on either side pins the ordering, which is enough here.
+    ("Upgrade Validation Assistant", "Title Only"),         # 11
+    ("DEMO", "Divider 3 - Short title"),                    # 12
+    ("MCP Server", "Title Only"),                           # 13
+    ("DEMO", "Divider 3 - Short title"),                    # 14
     # --- appendix ---
-    ("Driven by Perspective", None),      # 11 C-2
-    ("Content Foundation", None),         # 12 C-3
-    ("ACTUARIAL AI CURVE", None),         # 13 C-7
-    ("WHY MOODY", None),                  # 14 C-10
+    ("Driven by Perspective", None),      # 15 C-2
+    ("Content Foundation", None),         # 16 C-3
+    ("ACTUARIAL AI CURVE", None),         # 17 C-7
+    ("WHY MOODY", None),                  # 18 C-10
 ]
 
 
