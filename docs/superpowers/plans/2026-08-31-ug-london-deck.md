@@ -1,38 +1,46 @@
 # UG London 2026 Deck Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+>
+> **Also required:** the `shared-life-beta-ai-skills:implementation-moodys-pptx` skill. Every authoring step calls its `moodys_layouts` builders.
 
-**Goal:** Build a 16-slide (+4 appendix) English `.pptx` for a 30-minute talk, reusing six slides from the existing Moody's deck and authoring ten new ones on the same template.
+**Goal:** Build a 22-slide English `.pptx` for a 30-minute talk — 16 main line, 4 appendix, back cover, disclaimer — reusing six slides from the existing Moody's deck and authoring ten new ones with the skill's TOOLKIT builders.
 
-**Architecture:** Duplicate `resources/Consolidated GenAI common slides.pptx` into `deck/`, reorder its slides into the spine, then author new slides using layouts already in that file. Nothing is copied between the two source `.pptx` files. A `tools/verify_deck.py` script holds the expected slide order as data and is extended one task at a time — that is the red/green cycle for a deliverable with no unit tests.
+**Architecture:** Copy `resources/Consolidated GenAI common slides.pptx` into `deck/`, renumber its slide IDs, reorder the existing slides into the spine, then author new slides with `moodys_layouts` opened directly on that deck — no `reset_slides`. The Consolidated deck is verified to be the skill's own official template, so builders resolve their layouts by name against it. `tools/verify_deck.py` holds the expected slide order as data and grows one entry per task; that is the red/green cycle.
 
-**Tech Stack:** Python 3.11, python-pptx 0.6.23, LibreOffice (`soffice`) for render checks.
+**Tech Stack:** Python 3.11 via `uv run --with python-pptx` (add `--with cairosvg` for icons), python-pptx 0.6.23, the `implementation-moodys-pptx` skill, LibreOffice (`soffice`) for render checks.
 
 **Spec:** `docs/superpowers/specs/2026-08-31-ug-london-deck-design.md`
 
 ## Global Constraints
 
-- **English only.** All new text is English; the DEVOXX source is French and must be translated, never pasted.
-- **Template fidelity.** New slides use layouts already present in the working deck, by name. Never construct a slide from a blank layout.
-- **No cross-file slide copying.** Nothing is imported from `DEVOXX_2026_les_gardiens_du_prompt.pptx`; only re-authored English text derived from it.
-- **Product name is `RiskIntegrity for IFRS 17 Navigator`** — the README's name, not "Infoweb Navigator". One place to change if that turns out wrong: `EXPECTED` in `tools/verify_deck.py` and the two slides in Tasks 6.
-- **Never invent product facts.** Use case slides carry bracketed prompts in guillemets (`‹ … ›`) for the author to fill. No claim about what Navigator, UVA or the MCP server does may be written by the implementer — none of it is in this repo.
-- **Audience-facing vs. speaker-facing.** Fallback plans, timings and cut marks go in speaker notes, never on the slide face.
-- **Final state:** 20 slides — 16 main line (index 0–15) then 4 appendix (index 16–19).
+- **Slide IDs must be renumbered before any slide is added** (Task 1). The source deck's IDs top out at `2147483646`; python-pptx assigns `max + 1`, so it accepts exactly one new slide and then raises `ValueError: value must be in range 256 to 2147483647`. This is not optional and not recoverable later.
+- **Never call `ml.md.reset_slides`.** It would delete the six reused slides. This deck is edited in place.
+- **Shell preamble for every authoring command:**
+  ```bash
+  export SKILL=/Users/laumayp/.claude/plugins/cache/ibu-life-marketplace/shared-life-beta-ai-skills/0.8.0/skills/implementation-moodys-pptx
+  export MOODYS_ASSETS_DIR=/Users/laumayp/.claude/plugins/data/shared-life-beta-ai-skills-ibu-life-marketplace/moodys-assets
+  ```
+  `MOODYS_ASSETS_DIR` is required because `CLAUDE_PLUGIN_DATA` is unset in a plain shell; without it every icon silently becomes a blue circle.
+- **`ml.set_header_style("h1h2")` once** before authoring; pass every content builder a `subhead`.
+- **Icons on every item-based builder.** Resolve each name with `ml.md.find_icons("keyword")` **before** using it — `shield` and `check` return nothing. Never repeat an icon within a slide.
+- **English only.** The DEVOXX source is French; translate, never paste.
+- **Product name is `RiskIntegrity for IFRS 17 Navigator`** — the README's name, not "Infoweb Navigator".
+- **Never invent product facts.** Use case slides carry bracketed prompts in guillemets (`‹ … ›`). Nothing in this repo describes what Navigator, UVA or the MCP server do.
+- **Audience-facing vs speaker-facing.** Fallback plans, timings and cut marks go in speaker notes, never on the slide face.
+- **`ml.disclaimer(prs)` is mandatory and always the last slide.**
+- **Final state:** 22 slides — main line 0–15, appendix 16–19, back cover 20, disclaimer 21.
 
 ---
 
-### Task 1: Working copy and verification harness
+### Task 1: Working copy, ID renumber, and verification harness
 
 **Files:**
-- Create: `tools/deck.py`
-- Create: `tools/verify_deck.py`
-- Create: `.gitignore`
-- Create: `deck/UG_London_2026.pptx` (copied binary)
+- Create: `tools/deck.py`, `tools/verify_deck.py`, `.gitignore` (already committed — confirm only)
+- Create: `deck/UG_London_2026.pptx` (copied binary, git-ignored)
 
 **Interfaces:**
-- Consumes: nothing.
-- Produces: `tools/deck.py` exposing `open_deck(path) -> Presentation`, `find_layout(prs, name) -> SlideLayout`, `describe_layout(prs, name) -> None`, `reorder(prs, order: list[int]) -> None`, `add_slide_at(prs, layout_name: str, index: int) -> Slide`, `set_ph(slide, idx: int, text: str) -> bool`, `set_ph_lines(slide, idx: int, lines: list[str]) -> bool`, `drop_empty_placeholders(slide) -> None`, `set_notes(slide, text: str) -> None`, `slide_text(slide) -> str`. `tools/verify_deck.py` exposes module-level `EXPECTED: list[tuple[str, str | None]]` and is runnable as `python3 tools/verify_deck.py`.
+- Produces: `tools/deck.py` exposing `open_deck(path=DECK) -> Presentation`, `renumber_slide_ids(prs) -> list[int]`, `reorder(prs, order: list[int]) -> None`, `move_slide(prs, old: int, new: int) -> None`, `set_notes(slide, text: str) -> None`, `slide_text(slide) -> str`, and the constant `DECK`. `tools/verify_deck.py` exposes `EXPECTED: list[tuple[str, str | None]]`.
 
 - [ ] **Step 1: Write the verification script**
 
@@ -44,11 +52,13 @@ Create `tools/verify_deck.py`:
 
 EXPECTED is the source of truth: one (signature, layout_name) pair per slide,
 in order. `signature` is a distinctive substring that must appear somewhere on
-the slide, matched case-insensitively. `layout_name` is checked only when not
-None -- reused slides keep whatever layout they arrived with.
+the slide, matched case-insensitively; None skips the text check, which the
+disclaimer needs -- that slide has zero shapes of its own and inherits all its
+legal copy from its layout. `layout_name` is checked only when not None --
+reused slides keep whatever layout they arrived with.
 
 Signatures deliberately avoid apostrophes: the deck uses curly quotes (U+2019)
-throughout, so "Moody's" would never match.
+throughout, so "Moody's" typed with a straight quote would never match.
 """
 import re
 import sys
@@ -74,8 +84,8 @@ EXPECTED = [
 def slide_text(slide):
     """All text on a slide, including inside groups and tables.
 
-    Reads the raw XML rather than walking shapes: python-pptx does not descend
-    into grouped shapes, and several source slides are heavily grouped.
+    Reads raw XML rather than walking shapes: python-pptx does not descend into
+    grouped shapes, and several source slides are heavily grouped.
     """
     return " | ".join(re.findall(r"<a:t>(.*?)</a:t>", slide._element.xml, re.S))
 
@@ -93,7 +103,7 @@ def main():
             errors.append(f"slide {i}: missing entirely (expected {sig!r})")
             continue
         text = slide_text(slides[i])
-        if sig.lower() not in text.lower():
+        if sig is not None and sig.lower() not in text.lower():
             errors.append(f"slide {i}: signature {sig!r} not found")
         if layout is not None and slides[i].slide_layout.name != layout:
             errors.append(
@@ -117,7 +127,7 @@ if __name__ == "__main__":
 - [ ] **Step 2: Run it to verify it fails**
 
 ```bash
-cd /Users/laumayp/Development/UG2026 && python3 tools/verify_deck.py
+cd /Users/laumayp/Development/UG2026 && uv run --quiet --with python-pptx python tools/verify_deck.py
 ```
 
 Expected: FAIL — a `PackageNotFoundError` traceback, because `deck/UG_London_2026.pptx` does not exist yet.
@@ -130,13 +140,9 @@ cd /Users/laumayp/Development/UG2026 && mkdir -p deck && cp "resources/Consolida
 
 - [ ] **Step 4: Run it to verify it passes**
 
-```bash
-cd /Users/laumayp/Development/UG2026 && python3 tools/verify_deck.py
-```
-
 Expected: `PASS - 10 slides in expected order`
 
-If a signature fails here, the source deck differs from what the spec recorded — stop and re-read the source rather than weakening the signature.
+A signature failure here means the source deck differs from what the spec recorded — re-read the source rather than weakening the signature.
 
 - [ ] **Step 5: Write the helper module**
 
@@ -145,7 +151,7 @@ Create `tools/deck.py`:
 ```python
 """Helpers for editing the UG London deck with python-pptx 0.6.23.
 
-python-pptx has no public API for reordering slides or inserting one at a
+python-pptx has no public API for reordering slides or moving one to a
 position, so these reach into the `sldIdLst` element directly.
 """
 import re
@@ -159,26 +165,18 @@ def open_deck(path=DECK):
     return Presentation(path)
 
 
-def find_layout(prs, name):
-    """Find a layout by name across ALL masters.
+def renumber_slide_ids(prs, start=256):
+    """Renumber every p:sldId id into a low contiguous range.
 
-    prs.slide_layouts only exposes the first master's layouts; this deck has
-    two masters and 155 layouts, so most names are invisible to that property.
+    The source deck ships ids just under the int32 ceiling (max 2147483646).
+    python-pptx assigns max(ids)+1 per added slide, so without this the deck
+    accepts exactly ONE new slide and then raises ValueError. Slide ids are
+    arbitrary internal identifiers, independent of the r:id relationships, so
+    renumbering is lossless. Returns the new ids.
     """
-    for master in prs.slide_masters:
-        for layout in master.slide_layouts:
-            if layout.name == name:
-                return layout
-    raise KeyError(f"no layout named {name!r}")
-
-
-def describe_layout(prs, name):
-    """Print a layout's placeholders so a task can target them by idx."""
-    layout = find_layout(prs, name)
-    print(f"layout {name!r}:")
-    for ph in layout.placeholders:
-        pf = ph.placeholder_format
-        print(f"  idx={pf.idx}  type={pf.type}  name={ph.name!r}")
+    for n, el in enumerate(prs.slides._sldIdLst, start=start):
+        el.set("id", str(n))
+    return [int(el.get("id")) for el in prs.slides._sldIdLst]
 
 
 def reorder(prs, order):
@@ -193,40 +191,15 @@ def reorder(prs, order):
         lst.append(ids[i])
 
 
-def add_slide_at(prs, layout_name, index):
-    """Append a slide on the named layout, then move it to `index`."""
-    slide = prs.slides.add_slide(find_layout(prs, layout_name))
+def move_slide(prs, old, new):
+    """Move the slide at `old` to index `new`.
+
+    Builders append to the end; this puts the result where the spec wants it.
+    """
     lst = prs.slides._sldIdLst
-    el = list(lst)[-1]
+    el = list(lst)[old]
     lst.remove(el)
-    lst.insert(index, el)
-    return slide
-
-
-def set_ph(slide, idx, text):
-    for ph in slide.placeholders:
-        if ph.placeholder_format.idx == idx:
-            ph.text_frame.text = text
-            return True
-    return False
-
-
-def set_ph_lines(slide, idx, lines):
-    for ph in slide.placeholders:
-        if ph.placeholder_format.idx == idx:
-            tf = ph.text_frame
-            tf.text = lines[0]
-            for line in lines[1:]:
-                tf.add_paragraph().text = line
-            return True
-    return False
-
-
-def drop_empty_placeholders(slide):
-    """Remove placeholders left empty, so they do not render as prompt text."""
-    for ph in list(slide.placeholders):
-        if not ph.text_frame.text.strip():
-            ph._element.getparent().remove(ph._element)
+    lst.insert(new, el)
 
 
 def set_notes(slide, text):
@@ -237,57 +210,67 @@ def slide_text(slide):
     return " | ".join(re.findall(r"<a:t>(.*?)</a:t>", slide._element.xml, re.S))
 ```
 
-- [ ] **Step 6: Verify the helpers import and see both masters**
+- [ ] **Step 6: Renumber the slide IDs**
 
 ```bash
-cd /Users/laumayp/Development/UG2026 && python3 -c "
+cd /Users/laumayp/Development/UG2026 && uv run --quiet --with python-pptx python -c "
 import sys; sys.path.insert(0, 'tools')
-from deck import open_deck, find_layout
+from deck import open_deck, renumber_slide_ids, DECK
 prs = open_deck()
-n = sum(len(m.slide_layouts) for m in prs.slide_masters)
-print('masters', len(prs.slide_masters), 'layouts', n)
-for name in ['Cover 1', 'Agenda 3', 'Divider 1 - Short title',
-             '2 Column, Equal - Subhead', '1 Column - Subhead',
-             'Executive Summary/Key Takeaways 2']:
-    print(' found:', find_layout(prs, name).name)
+before = [int(e.get('id')) for e in prs.slides._sldIdLst]
+after = renumber_slide_ids(prs)
+prs.save(DECK)
+print('max id', max(before), '->', max(after))
 "
 ```
 
-Expected: `masters 2 layouts 155`, then each of the six layout names printed. A `KeyError` means the layout name in the spec is wrong — list the real names before continuing.
+Expected: `max id 2147483646 -> 265`
 
-- [ ] **Step 7: Confirm .gitignore covers the working files**
+- [ ] **Step 7: Prove the deck now accepts more than one new slide**
 
-`.gitignore` already exists and excludes Office lock files (`~$*`), `build/` and `deck/`. No change needed — just confirm:
-
-```bash
-cd /Users/laumayp/Development/UG2026 && git check-ignore -v deck/UG_London_2026.pptx build/x.pdf 'resources/~$test.pptx'
-```
-
-Expected: all three report a matching `.gitignore` rule.
-
-The source decks in `resources/` **are** tracked — they are irreplaceable input. `deck/` is not: the working deck is a ~10 MB binary rewritten by all eight authoring tasks, so tracking it would add roughly 80 MB of history for a file fully regenerable from `resources/` plus `tools/`. If the finished deck should be versioned, commit it once at the end rather than un-ignoring the directory.
-
-- [ ] **Step 8: Commit**
+This is the whole point of Step 6, so verify it rather than assuming:
 
 ```bash
-cd /Users/laumayp/Development/UG2026 && git add tools/ && git commit -m "build: deck helpers and structural verification harness"
+cd /Users/laumayp/Development/UG2026 && uv run --quiet --with python-pptx python -c "
+import sys; sys.path.insert(0, 'tools')
+from deck import open_deck
+prs = open_deck()
+lay = prs.slide_masters[0].slide_layouts[0]
+for i in range(3):
+    prs.slides.add_slide(lay)
+print('added 3 scratch slides OK - not saved')
+"
 ```
+
+Expected: `added 3 scratch slides OK - not saved`. The file is deliberately not saved, so the scratch slides are discarded. Before Step 6 this raised `ValueError` on the second slide.
+
+- [ ] **Step 8: Confirm .gitignore covers the working files**
+
+```bash
+cd /Users/laumayp/Development/UG2026 && git check-ignore -v deck/UG_London_2026.pptx build/x.pdf 'resources/~$t.pptx'
+```
+
+Expected: all three report a matching `.gitignore` rule. `resources/` is tracked (irreplaceable input); `deck/` is not, because the working deck is a ~10 MB binary rewritten by every authoring task.
+
+- [ ] **Step 9: Run the verifier, then commit**
+
+```bash
+cd /Users/laumayp/Development/UG2026 && uv run --quiet --with python-pptx python tools/verify_deck.py && git add tools/ && git commit -m "build: deck helpers, slide-id renumber, verification harness"
+```
+
+Expected: `PASS - 10 slides in expected order`, then a commit.
 
 ---
 
 ### Task 2: Reorder into spine plus appendix
 
-**Files:**
-- Modify: `deck/UG_London_2026.pptx`
-- Modify: `tools/verify_deck.py` (EXPECTED)
+**Files:** Modify `deck/UG_London_2026.pptx`, `tools/verify_deck.py`
 
-**Interfaces:**
-- Consumes: `reorder`, `open_deck` from Task 1.
-- Produces: a 10-slide deck ordered C-1, C-5, C-4, C-6, C-8, C-9, then appendix C-2, C-3, C-7, C-10.
+**Interfaces:** Consumes `reorder`, `open_deck`. Produces a 10-slide deck ordered C-1, C-5, C-4, C-6, C-8, C-9, then appendix C-2, C-3, C-7, C-10.
 
 - [ ] **Step 1: Update EXPECTED to the target order**
 
-Replace the `EXPECTED` list in `tools/verify_deck.py` with:
+Replace `EXPECTED` in `tools/verify_deck.py`:
 
 ```python
 EXPECTED = [
@@ -308,16 +291,12 @@ EXPECTED = [
 
 - [ ] **Step 2: Run to verify it fails**
 
-```bash
-cd /Users/laumayp/Development/UG2026 && python3 tools/verify_deck.py
-```
+Expected: FAIL — several `signature ... not found`, because the deck is still in source order.
 
-Expected: FAIL — several `signature ... not found` lines, because the deck is still in source order.
-
-- [ ] **Step 3: Reorder the deck**
+- [ ] **Step 3: Reorder**
 
 ```bash
-cd /Users/laumayp/Development/UG2026 && python3 -c "
+cd /Users/laumayp/Development/UG2026 && uv run --quiet --with python-pptx python -c "
 import sys; sys.path.insert(0, 'tools')
 from deck import open_deck, reorder, DECK
 prs = open_deck()
@@ -328,35 +307,109 @@ print('reordered')
 "
 ```
 
-- [ ] **Step 4: Run to verify it passes**
+- [ ] **Step 4: Run to verify it passes, then commit**
 
 ```bash
-cd /Users/laumayp/Development/UG2026 && python3 tools/verify_deck.py
+cd /Users/laumayp/Development/UG2026 && uv run --quiet --with python-pptx python tools/verify_deck.py && git add tools/verify_deck.py && git commit -m "feat: reorder deck into spine and appendix"
 ```
 
 Expected: `PASS - 10 slides in expected order`
 
-- [ ] **Step 5: Commit**
+---
+
+### Task 3: Resolve the icon names
+
+Every later task needs icon names that actually exist. Resolve them once, here, rather than guessing mid-build. `shield` and `check` return nothing, so guessing produces silent blue circles.
+
+**Files:** Create `tools/icons.py`
+
+**Interfaces:** Produces `tools/icons.py` exposing `ICONS: dict[str, str]`, mapping a role key to a verified official icon name.
+
+- [ ] **Step 1: Search for a candidate per role**
 
 ```bash
-cd /Users/laumayp/Development/UG2026 && git add tools/verify_deck.py && git commit -m "feat: reorder deck into spine and appendix"
+export SKILL=/Users/laumayp/.claude/plugins/cache/ibu-life-marketplace/shared-life-beta-ai-skills/0.8.0/skills/implementation-moodys-pptx
+export MOODYS_ASSETS_DIR=/Users/laumayp/.claude/plugins/data/shared-life-beta-ai-skills-ibu-life-marketplace/moodys-assets
+cd /Users/laumayp/Development/UG2026 && uv run --quiet --with python-pptx --with cairosvg python -c "
+import sys, os; sys.path.insert(0, os.environ['SKILL'] + '/scripts')
+import moodys_deck as md
+md.ensure_icons()
+for kw in ['regulation','legal','balance','warning','risk','lock','document',
+           'target','cloud','data','people','process','settings','search',
+           'approved','audit','network','robot']:
+    print(kw.ljust(12), (md.find_icons(kw) or [])[:4])
+"
+```
+
+Read the output and choose one distinct icon per role below. Do not reuse an icon across a single slide.
+
+- [ ] **Step 2: Write the resolved map**
+
+Create `tools/icons.py`, substituting names that appeared in Step 1's output:
+
+```python
+"""Verified official Moody's icon names, one per role.
+
+Every value MUST have appeared in `md.find_icons()` output -- an unresolved
+name degrades silently to a bright-blue circle placeholder.
+"""
+ICONS = {
+    # slide 6 - security landscape
+    "regulation": "‹ from Step 1 ›",
+    "owasp": "‹ from Step 1 ›",
+    # slide 8 - three use cases
+    "navigator": "‹ from Step 1 ›",
+    "uva": "‹ from Step 1 ›",
+    "mcp": "‹ from Step 1 ›",
+    # slides 9/11/13 - use case fields
+    "today": "‹ from Step 1 ›",
+    "assistant": "‹ from Step 1 ›",
+    "governed": "‹ from Step 1 ›",
+    "status": "‹ from Step 1 ›",
+    # slide 15 - conclusion principles
+    "grounded": "‹ from Step 1 ›",
+    "access": "‹ from Step 1 ›",
+    "human": "‹ from Step 1 ›",
+    "audit": "‹ from Step 1 ›",
+    "invite": "‹ from Step 1 ›",
+}
+```
+
+- [ ] **Step 3: Verify every name resolves**
+
+```bash
+export SKILL=/Users/laumayp/.claude/plugins/cache/ibu-life-marketplace/shared-life-beta-ai-skills/0.8.0/skills/implementation-moodys-pptx
+export MOODYS_ASSETS_DIR=/Users/laumayp/.claude/plugins/data/shared-life-beta-ai-skills-ibu-life-marketplace/moodys-assets
+cd /Users/laumayp/Development/UG2026 && uv run --quiet --with python-pptx --with cairosvg python -c "
+import sys, os; sys.path.insert(0, os.environ['SKILL'] + '/scripts'); sys.path.insert(0, 'tools')
+import moodys_deck as md
+from icons import ICONS
+md.ensure_icons()
+bad = [k for k, v in ICONS.items() if md.find_icon(v) is None]
+print('unresolved:', bad or 'none')
+sys.exit(1 if bad else 0)
+"
+```
+
+Expected: `unresolved: none` and exit 0. Any listed key has a wrong name — fix it before continuing, or that slide renders blue circles.
+
+- [ ] **Step 4: Commit**
+
+```bash
+cd /Users/laumayp/Development/UG2026 && git add tools/icons.py && git commit -m "feat: resolve official icon names for the deck"
 ```
 
 ---
 
-### Task 3: Title slide
+### Task 4: Title slide
 
-**Files:**
-- Modify: `deck/UG_London_2026.pptx`
-- Modify: `tools/verify_deck.py`
+**Files:** Modify `deck/UG_London_2026.pptx`, `tools/verify_deck.py`
 
-**Interfaces:**
-- Consumes: `add_slide_at`, `describe_layout`, `set_ph`, `drop_empty_placeholders`, `set_notes`.
-- Produces: slide 0 on layout `Cover 1`; every later index shifts by one.
+**Interfaces:** Consumes `ml.cover`, `move_slide`, `set_notes`. Produces slide 0 on layout `Cover 1`; every later index shifts by one.
 
 - [ ] **Step 1: Add the expectation**
 
-Insert as the first entry of `EXPECTED` in `tools/verify_deck.py`:
+Insert as the first entry of `EXPECTED`:
 
 ```python
     ("Bringing Trustworthy GenAI to Insurance", "Cover 1"),  # 0  title
@@ -364,313 +417,248 @@ Insert as the first entry of `EXPECTED` in `tools/verify_deck.py`:
 
 - [ ] **Step 2: Run to verify it fails**
 
-Expected: FAIL — `slide count is 10, expected 11` plus signature mismatches from the shift.
+Expected: FAIL — `slide count is 10, expected 11` plus signature shifts.
 
-- [ ] **Step 3: Discover the layout's placeholders**
+- [ ] **Step 3: Author the slide**
 
-```bash
-cd /Users/laumayp/Development/UG2026 && python3 -c "
-import sys; sys.path.insert(0, 'tools')
-from deck import open_deck, describe_layout
-describe_layout(open_deck(), 'Cover 1')
-"
-```
-
-Note the printed `idx` values. The next step assumes title is `idx=0` and the subtitle is the next-lowest idx — if the printout disagrees, use the real numbers.
-
-- [ ] **Step 4: Author the slide**
+Builders append, so the cover is moved to index 0 afterwards.
 
 ```bash
-cd /Users/laumayp/Development/UG2026 && python3 -c "
-import sys; sys.path.insert(0, 'tools')
-from deck import open_deck, add_slide_at, set_ph, drop_empty_placeholders, set_notes, DECK
+export SKILL=/Users/laumayp/.claude/plugins/cache/ibu-life-marketplace/shared-life-beta-ai-skills/0.8.0/skills/implementation-moodys-pptx
+export MOODYS_ASSETS_DIR=/Users/laumayp/.claude/plugins/data/shared-life-beta-ai-skills-ibu-life-marketplace/moodys-assets
+cd /Users/laumayp/Development/UG2026 && uv run --quiet --with python-pptx --with cairosvg python -c "
+import sys, os; sys.path.insert(0, os.environ['SKILL'] + '/scripts'); sys.path.insert(0, 'tools')
+import moodys_layouts as ml
+from deck import open_deck, move_slide, set_notes, DECK
 prs = open_deck()
-s = add_slide_at(prs, 'Cover 1', 0)
-set_ph(s, 0, 'Bringing Trustworthy GenAI to Insurance')
-set_ph(s, 1, 'User Group London 2026')
-drop_empty_placeholders(s)
-set_notes(s, 'Speaker names to be confirmed. 30 minutes including three live demos. Budget 0:30 here.')
+ml.set_header_style('h1h2')
+s = ml.cover(prs, 'Bringing Trustworthy GenAI to Insurance',
+             subtitle='User Group London 2026')
+set_notes(s, 'Budget 0:30. CORE. Speaker names to be confirmed. 30 minutes including three live demos.')
+move_slide(prs, len(prs.slides._sldIdLst) - 1, 0)
 prs.save(DECK)
-print('title slide added')
+print('title slide added at index 0')
 "
 ```
 
-- [ ] **Step 5: Run to verify it passes**
+- [ ] **Step 4: Run to verify it passes, then commit**
+
+```bash
+cd /Users/laumayp/Development/UG2026 && uv run --quiet --with python-pptx python tools/verify_deck.py && git add tools/verify_deck.py && git commit -m "feat: add title slide"
+```
 
 Expected: `PASS - 11 slides in expected order`
 
-- [ ] **Step 6: Commit**
-
-```bash
-cd /Users/laumayp/Development/UG2026 && git add tools/verify_deck.py && git commit -m "feat: add title slide"
-```
-
 ---
 
-### Task 4: Security landscape slide
+### Task 5: Security landscape slide
 
-**Files:**
-- Modify: `deck/UG_London_2026.pptx`
-- Modify: `tools/verify_deck.py`
+**Files:** Modify `deck/UG_London_2026.pptx`, `tools/verify_deck.py`
 
-**Interfaces:**
-- Consumes: `add_slide_at`, `set_ph_lines`, `drop_empty_placeholders`, `set_notes`.
-- Produces: new slide at index 6, immediately before `RESPONSIBLE AI`.
+**Interfaces:** Consumes `ml.columns`, `move_slide`, `set_notes`, `ICONS`. Produces a new slide at index 6, immediately before `RESPONSIBLE AI`.
 
-Content is translated and condensed from DEVOXX slides 6 and 9. The English below is the deliverable — do not re-translate from the French.
+The English below is the deliverable, translated and condensed from DEVOXX slides 6 and 9. Do not re-translate from the French.
 
 - [ ] **Step 1: Add the expectation**
 
-Insert into `EXPECTED` between `OUR APPROACH` (index 5) and `RESPONSIBLE AI`:
+Insert between `OUR APPROACH` (index 5) and `RESPONSIBLE AI`. `ml.columns` composes on a `Title Only` canvas:
 
 ```python
-    ("OWASP", "2 Column, Equal - Subhead"),  # 6  security landscape
+    ("OWASP", "Title Only"),  # 6  security landscape
 ```
 
 - [ ] **Step 2: Run to verify it fails**
 
-Expected: FAIL — count 11 vs 12, and `RESPONSIBLE AI` found at the wrong index.
+Expected: FAIL — count 11 vs 12, and `RESPONSIBLE AI` at the wrong index.
 
-- [ ] **Step 3: Discover the layout's placeholders**
-
-```bash
-cd /Users/laumayp/Development/UG2026 && python3 -c "
-import sys; sys.path.insert(0, 'tools')
-from deck import open_deck, describe_layout
-describe_layout(open_deck(), '2 Column, Equal - Subhead')
-"
-```
-
-Expect a title, a subhead, and two body placeholders. Map the two bodies to left and right by their `idx` order.
-
-- [ ] **Step 4: Author the slide**
-
-Substitute the real `idx` values from Step 3 for `LEFT` and `RIGHT`:
+- [ ] **Step 3: Author the slide**
 
 ```bash
-cd /Users/laumayp/Development/UG2026 && python3 -c "
-import sys; sys.path.insert(0, 'tools')
-from deck import open_deck, add_slide_at, set_ph, set_ph_lines, drop_empty_placeholders, set_notes, DECK
-LEFT, RIGHT = 1, 2   # <-- replace with idx values printed in Step 3
+export SKILL=/Users/laumayp/.claude/plugins/cache/ibu-life-marketplace/shared-life-beta-ai-skills/0.8.0/skills/implementation-moodys-pptx
+export MOODYS_ASSETS_DIR=/Users/laumayp/.claude/plugins/data/shared-life-beta-ai-skills-ibu-life-marketplace/moodys-assets
+cd /Users/laumayp/Development/UG2026 && uv run --quiet --with python-pptx --with cairosvg python -c "
+import sys, os; sys.path.insert(0, os.environ['SKILL'] + '/scripts'); sys.path.insert(0, 'tools')
+import moodys_layouts as ml
+from deck import open_deck, move_slide, set_notes, DECK
+from icons import ICONS
 prs = open_deck()
-s = add_slide_at(prs, '2 Column, Equal - Subhead', 6)
-set_ph(s, 0, 'Securing GenAI: the landscape')
-set_ph_lines(s, LEFT, [
-    'Regulatory pressure',
-    'The EU AI Act sets the precedent: a deliberately broad definition of AI, covering both generative and autonomous-action tooling.',
-    'Obligations scale with the risk posed to the user.',
-    'A worldwide trend, not a European one.',
-])
-set_ph_lines(s, RIGHT, [
-    'OWASP GenAI Security Project',
-    'The working checklist for anyone shipping LLM features.',
-    'LLM01 Prompt Injection - LLM02 Sensitive Information Disclosure',
-    'LLM06 Excessive Agency - LLM07 System Prompt Leakage',
-    'Every entry carries a vulnerability, a scenario and a mitigation.',
-])
-drop_empty_placeholders(s)
+ml.set_header_style('h1h2')
+s = ml.columns(prs, 'Securing GenAI: the landscape', [
+    {'kicker': 'REGULATORY PRESSURE',
+     'head': 'The EU AI Act sets the precedent',
+     'body': 'A deliberately broad definition of AI, covering both generative and autonomous-action tooling. Obligations scale with the risk posed to the user. A worldwide trend, not a European one.',
+     'icon': ml.md.find_icon(ICONS['regulation'])},
+    {'kicker': 'OWASP GENAI SECURITY PROJECT',
+     'head': 'The working checklist',
+     'body': 'LLM01 Prompt Injection. LLM02 Sensitive Information Disclosure. LLM06 Excessive Agency. LLM07 System Prompt Leakage. Every entry carries a vulnerability, a scenario and a mitigation.',
+     'icon': ml.md.find_icon(ICONS['owasp'])},
+], subhead='Two forces shape what production-ready means')
 set_notes(s, (
     'Budget 1:30. FLEX - if running late, compress to one spoken sentence over the next slide.\n'
     'The exposure is reputational, human and financial.\n'
     'Full OWASP LLM Top 10 for questions: LLM01 Prompt Injection, LLM02 Sensitive Information '
-    'Disclosure, LLM03 Supply Chain, LLM04 Data and Model Poisoning, LLM05 Improper Output Handling, '
-    'LLM06 Excessive Agency, LLM07 System Prompt Leakage, LLM08 Vector and Embedding Weaknesses, '
-    'LLM09 Misinformation, LLM10 Unbounded Consumption.'
+    'Disclosure, LLM03 Supply Chain, LLM04 Data and Model Poisoning, LLM05 Improper Output '
+    'Handling, LLM06 Excessive Agency, LLM07 System Prompt Leakage, LLM08 Vector and Embedding '
+    'Weaknesses, LLM09 Misinformation, LLM10 Unbounded Consumption.'
 ))
+move_slide(prs, len(prs.slides._sldIdLst) - 1, 6)
 prs.save(DECK)
-print('security slide added')
+print('security slide added at index 6')
 "
 ```
 
-- [ ] **Step 5: Run to verify it passes**
+- [ ] **Step 4: Run to verify it passes, then commit**
+
+```bash
+cd /Users/laumayp/Development/UG2026 && uv run --quiet --with python-pptx python tools/verify_deck.py && git add tools/verify_deck.py && git commit -m "feat: add security landscape slide"
+```
 
 Expected: `PASS - 12 slides in expected order`
 
-- [ ] **Step 6: Commit**
-
-```bash
-cd /Users/laumayp/Development/UG2026 && git add tools/verify_deck.py && git commit -m "feat: add security landscape slide"
-```
-
 ---
 
-### Task 5: Use case intro slide
+### Task 6: Use case intro slide
 
-**Files:**
-- Modify: `deck/UG_London_2026.pptx`
-- Modify: `tools/verify_deck.py`
+**Files:** Modify `deck/UG_London_2026.pptx`, `tools/verify_deck.py`
 
-**Interfaces:**
-- Consumes: `add_slide_at`, `set_ph_lines`, `drop_empty_placeholders`, `set_notes`.
-- Produces: new slide at index 8, after `RESPONSIBLE AI`.
+**Interfaces:** Consumes `ml.columns`, `move_slide`, `set_notes`, `ICONS`. Produces a new slide at index 8, after `RESPONSIBLE AI`.
 
 - [ ] **Step 1: Add the expectation**
 
-Append to `EXPECTED` after `RESPONSIBLE AI` (index 7):
-
 ```python
-    ("one foundation", "Agenda 3"),  # 8  three use cases
+    ("one foundation", "Title Only"),  # 8  three use cases
 ```
 
 - [ ] **Step 2: Run to verify it fails**
 
 Expected: FAIL — count 12 vs 13.
 
-- [ ] **Step 3: Discover the layout's placeholders**
+- [ ] **Step 3: Author the slide**
 
 ```bash
-cd /Users/laumayp/Development/UG2026 && python3 -c "
-import sys; sys.path.insert(0, 'tools')
-from deck import open_deck, describe_layout
-describe_layout(open_deck(), 'Agenda 3')
-"
-```
-
-If `Agenda 3` turns out to have fewer than three body placeholders, use `3 Column - Subhead` instead and update the expectation's layout name to match.
-
-- [ ] **Step 4: Author the slide**
-
-```bash
-cd /Users/laumayp/Development/UG2026 && python3 -c "
-import sys; sys.path.insert(0, 'tools')
-from deck import open_deck, add_slide_at, set_ph, set_ph_lines, drop_empty_placeholders, set_notes, DECK
-A, B, C = 1, 2, 3   # <-- replace with idx values printed in Step 3
+export SKILL=/Users/laumayp/.claude/plugins/cache/ibu-life-marketplace/shared-life-beta-ai-skills/0.8.0/skills/implementation-moodys-pptx
+export MOODYS_ASSETS_DIR=/Users/laumayp/.claude/plugins/data/shared-life-beta-ai-skills-ibu-life-marketplace/moodys-assets
+cd /Users/laumayp/Development/UG2026 && uv run --quiet --with python-pptx --with cairosvg python -c "
+import sys, os; sys.path.insert(0, os.environ['SKILL'] + '/scripts'); sys.path.insert(0, 'tools')
+import moodys_layouts as ml
+from deck import open_deck, move_slide, set_notes, DECK
+from icons import ICONS
 prs = open_deck()
-s = add_slide_at(prs, 'Agenda 3', 8)
-set_ph(s, 0, 'Three use cases, one foundation')
-set_ph_lines(s, A, ['RiskIntegrity for IFRS 17 Navigator',
-                    'Applications layer', 'In production today'])
-set_ph_lines(s, B, ['Upgrade Validation Assistant',
-                    'Applications layer'])
-set_ph_lines(s, C, ['Moody\\u2019s MCP Server',
-                    'Open platform layer', 'Your agents, our data'])
-drop_empty_placeholders(s)
+ml.set_header_style('h1h2')
+s = ml.columns(prs, 'Three use cases, one foundation', [
+    {'kicker': 'APPLICATIONS LAYER', 'head': 'RiskIntegrity for IFRS 17 Navigator',
+     'body': 'In production today.', 'icon': ml.md.find_icon(ICONS['navigator'])},
+    {'kicker': 'APPLICATIONS LAYER', 'head': 'Upgrade Validation Assistant',
+     'body': 'Built with clients, on the same foundation.', 'icon': ml.md.find_icon(ICONS['uva'])},
+    {'kicker': 'OPEN PLATFORM LAYER', 'head': 'Moody’s MCP Server',
+     'body': 'Your agents, our data.', 'icon': ml.md.find_icon(ICONS['mcp'])},
+], subhead='Each one proves a layer of the strategy')
 set_notes(s, (
     'Budget 1:00. CORE.\n'
     'Call back to the three layers slide: each use case proves one layer. '
     'The MCP server was already named on the access-channels slide.'
 ))
+move_slide(prs, len(prs.slides._sldIdLst) - 1, 8)
 prs.save(DECK)
-print('use case intro added')
+print('use case intro added at index 8')
 "
 ```
 
-- [ ] **Step 5: Run to verify it passes**
+- [ ] **Step 4: Run to verify it passes, then commit**
+
+```bash
+cd /Users/laumayp/Development/UG2026 && uv run --quiet --with python-pptx python tools/verify_deck.py && git add tools/verify_deck.py && git commit -m "feat: add use case intro slide"
+```
 
 Expected: `PASS - 13 slides in expected order`
 
-- [ ] **Step 6: Commit**
-
-```bash
-cd /Users/laumayp/Development/UG2026 && git add tools/verify_deck.py && git commit -m "feat: add use case intro slide"
-```
-
 ---
 
-### Task 6: Use case 1 — context slide and demo card
+### Task 7: Use case 1 — context slide and demo card
 
-This task establishes the pattern that Task 7 replicates. Review it before proceeding.
+This establishes the pattern Task 8 replicates. Review before proceeding.
 
-**Files:**
-- Modify: `deck/UG_London_2026.pptx`
-- Modify: `tools/verify_deck.py`
+**Files:** Modify `deck/UG_London_2026.pptx`, `tools/verify_deck.py`
 
-**Interfaces:**
-- Consumes: `add_slide_at`, `set_ph`, `set_ph_lines`, `drop_empty_placeholders`, `set_notes`.
-- Produces: slides at indices 9 and 10. Demo scaffolding lives in **speaker notes**, not on the slide face — the audience must never see the fallback plan.
+**Interfaces:** Consumes `ml.icon_text`, `ml.divider`, `move_slide`, `set_notes`, `ICONS`. Produces slides at indices 9 and 10. Demo scaffolding lives in **speaker notes** — the audience must never see the fallback plan.
 
 - [ ] **Step 1: Add both expectations**
 
-Append to `EXPECTED` after the use case intro:
-
 ```python
-    ("RiskIntegrity for IFRS 17 Navigator", "1 Column - Subhead"),  # 9
-    ("DEMO", "Divider 1 - Short title"),                            # 10
+    ("RiskIntegrity for IFRS 17 Navigator", "Title Only"),   # 9
+    ("DEMO", "Divider 3 - Short title"),                     # 10
 ```
 
 - [ ] **Step 2: Run to verify it fails**
 
 Expected: FAIL — count 13 vs 15.
 
-- [ ] **Step 3: Discover both layouts**
+- [ ] **Step 3: Author both slides**
 
 ```bash
-cd /Users/laumayp/Development/UG2026 && python3 -c "
-import sys; sys.path.insert(0, 'tools')
-from deck import open_deck, describe_layout
+export SKILL=/Users/laumayp/.claude/plugins/cache/ibu-life-marketplace/shared-life-beta-ai-skills/0.8.0/skills/implementation-moodys-pptx
+export MOODYS_ASSETS_DIR=/Users/laumayp/.claude/plugins/data/shared-life-beta-ai-skills-ibu-life-marketplace/moodys-assets
+cd /Users/laumayp/Development/UG2026 && uv run --quiet --with python-pptx --with cairosvg python -c "
+import sys, os; sys.path.insert(0, os.environ['SKILL'] + '/scripts'); sys.path.insert(0, 'tools')
+import moodys_layouts as ml
+from deck import open_deck, move_slide, set_notes, DECK
+from icons import ICONS
 prs = open_deck()
-describe_layout(prs, '1 Column - Subhead')
-describe_layout(prs, 'Divider 1 - Short title')
-"
-```
-
-- [ ] **Step 4: Author both slides**
-
-```bash
-cd /Users/laumayp/Development/UG2026 && python3 -c "
-import sys; sys.path.insert(0, 'tools')
-from deck import open_deck, add_slide_at, set_ph, set_ph_lines, drop_empty_placeholders, set_notes, DECK
-BODY = 1   # <-- replace with the body idx printed for '1 Column - Subhead'
-prs = open_deck()
-
-s = add_slide_at(prs, '1 Column - Subhead', 9)
-set_ph(s, 0, 'RiskIntegrity for IFRS 17 Navigator')
-set_ph_lines(s, BODY, [
-    'Today: \\u2039 the workflow as it runs now, and where it hurts \\u2014 one line \\u203a',
-    'The assistant: \\u2039 what it does \\u2014 one line \\u203a',
-    'Grounded and governed: \\u2039 what it is grounded in, who signs off \\u2014 one line \\u203a',
-    'Status: \\u2039 production / pilot / discovery \\u203a',
-])
-drop_empty_placeholders(s)
+ml.set_header_style('h1h2')
+FIELDS = [
+    {'head': 'Today', 'body': '‹ the workflow as it runs now, and where it hurts — one line ›',
+     'icon': ml.md.find_icon(ICONS['today'])},
+    {'head': 'The assistant', 'body': '‹ what it does — one line ›',
+     'icon': ml.md.find_icon(ICONS['assistant'])},
+    {'head': 'Grounded and governed', 'body': '‹ what it is grounded in, who signs off — one line ›',
+     'icon': ml.md.find_icon(ICONS['governed'])},
+    {'head': 'Status', 'body': '‹ production / pilot / discovery ›',
+     'icon': ml.md.find_icon(ICONS['status'])},
+]
+s = ml.icon_text(prs, 'RiskIntegrity for IFRS 17 Navigator', FIELDS, subhead='Use case 1')
 set_notes(s, 'Budget 1:00. CORE. Tie the grounded-and-governed line back to the Responsible AI slide.')
+move_slide(prs, len(prs.slides._sldIdLst) - 1, 9)
 
-d = add_slide_at(prs, 'Divider 1 - Short title', 10)
-set_ph(d, 0, 'DEMO')
-drop_empty_placeholders(d)
+d = ml.divider(prs, 'DEMO', eyebrow='Use case 1')
 set_notes(d, (
-    'RiskIntegrity for IFRS 17 Navigator. Budget 4:00. CORE.\\n'
-    'What we will show: \\u2039 3-4 bullets \\u203a\\n'
-    'Entry state: \\u2039 what is on screen before I start \\u2014 set up before the talk \\u203a\\n'
-    'Exit state: \\u2039 what they should have seen \\u203a\\n'
-    'Fallback: \\u2039 screenshot or recording to cut to if it fails \\u203a\\n'
-    'Security artifact to surface: a citation \\u2014 shows grounding, not guessing.'
+    'RiskIntegrity for IFRS 17 Navigator. Budget 4:00. CORE.\n'
+    'What we will show: ‹ 3-4 bullets ›\n'
+    'Entry state: ‹ what is on screen before I start — set up before the talk ›\n'
+    'Exit state: ‹ what they should have seen ›\n'
+    'Fallback: ‹ screenshot or recording to cut to if it fails ›\n'
+    'Security artifact to surface: a citation — shows grounding, not guessing.'
 ))
+move_slide(prs, len(prs.slides._sldIdLst) - 1, 10)
 prs.save(DECK)
-print('use case 1 added')
+print('use case 1 added at indices 9 and 10')
 "
 ```
 
-- [ ] **Step 5: Run to verify it passes**
+- [ ] **Step 4: Run to verify it passes, then commit**
+
+```bash
+cd /Users/laumayp/Development/UG2026 && uv run --quiet --with python-pptx python tools/verify_deck.py && git add tools/verify_deck.py && git commit -m "feat: add use case 1 context and demo card"
+```
 
 Expected: `PASS - 15 slides in expected order`
 
-- [ ] **Step 6: Commit**
-
-```bash
-cd /Users/laumayp/Development/UG2026 && git add tools/verify_deck.py && git commit -m "feat: add use case 1 context and demo card"
-```
-
 ---
 
-### Task 7: Use cases 2 and 3
+### Task 8: Use cases 2 and 3
 
-**Files:**
-- Modify: `deck/UG_London_2026.pptx`
-- Modify: `tools/verify_deck.py`
+**Files:** Modify `deck/UG_London_2026.pptx`, `tools/verify_deck.py`
 
-**Interfaces:**
-- Consumes: same helpers as Task 6, same layouts, same field structure.
-- Produces: slides at indices 11–14.
+**Interfaces:** Same builders, layouts and field structure as Task 7. Produces slides at indices 11–14.
 
 - [ ] **Step 1: Add four expectations**
 
-Append to `EXPECTED` after the use case 1 demo card. All three demo cards carry the same on-slide text, so their `"DEMO"` signatures are not unique — two demo cards swapped would pass this check. The unique context slides on either side pin the ordering, which is sufficient here:
+All three demo cards carry the same on-slide text, so their `"DEMO"` signatures are not unique — two swapped demo cards would pass. The unique context slides on either side pin the ordering, which is sufficient here.
 
 ```python
-    ("Upgrade Validation Assistant", "1 Column - Subhead"),  # 11
-    ("DEMO", "Divider 1 - Short title"),                     # 12
-    ("MCP Server", "1 Column - Subhead"),                    # 13
-    ("DEMO", "Divider 1 - Short title"),                     # 14
+    ("Upgrade Validation Assistant", "Title Only"),   # 11
+    ("DEMO", "Divider 3 - Short title"),              # 12
+    ("MCP Server", "Title Only"),                     # 13
+    ("DEMO", "Divider 3 - Short title"),              # 14
 ```
 
 - [ ] **Step 2: Run to verify it fails**
@@ -680,148 +668,154 @@ Expected: FAIL — count 15 vs 19.
 - [ ] **Step 3: Author all four slides**
 
 ```bash
-cd /Users/laumayp/Development/UG2026 && python3 -c "
-import sys; sys.path.insert(0, 'tools')
-from deck import open_deck, add_slide_at, set_ph, set_ph_lines, drop_empty_placeholders, set_notes, DECK
-BODY = 1   # <-- same idx used in Task 6
-FIELDS = [
-    'Today: \\u2039 the workflow as it runs now, and where it hurts \\u2014 one line \\u203a',
-    'The assistant: \\u2039 what it does \\u2014 one line \\u203a',
-    'Grounded and governed: \\u2039 what it is grounded in, who signs off \\u2014 one line \\u203a',
-    'Status: \\u2039 production / pilot / discovery \\u203a',
-]
-DEMO_FIELDS = (
-    'What we will show: \\u2039 3-4 bullets \\u203a\\n'
-    'Entry state: \\u2039 what is on screen before I start \\u2014 set up before the talk \\u203a\\n'
-    'Exit state: \\u2039 what they should have seen \\u203a\\n'
-    'Fallback: \\u2039 screenshot or recording to cut to if it fails \\u203a\\n'
-)
+export SKILL=/Users/laumayp/.claude/plugins/cache/ibu-life-marketplace/shared-life-beta-ai-skills/0.8.0/skills/implementation-moodys-pptx
+export MOODYS_ASSETS_DIR=/Users/laumayp/.claude/plugins/data/shared-life-beta-ai-skills-ibu-life-marketplace/moodys-assets
+cd /Users/laumayp/Development/UG2026 && uv run --quiet --with python-pptx --with cairosvg python -c "
+import sys, os; sys.path.insert(0, os.environ['SKILL'] + '/scripts'); sys.path.insert(0, 'tools')
+import moodys_layouts as ml
+from deck import open_deck, move_slide, set_notes, DECK
+from icons import ICONS
+
+def fields():
+    return [
+        {'head': 'Today', 'body': '‹ the workflow as it runs now, and where it hurts — one line ›',
+         'icon': ml.md.find_icon(ICONS['today'])},
+        {'head': 'The assistant', 'body': '‹ what it does — one line ›',
+         'icon': ml.md.find_icon(ICONS['assistant'])},
+        {'head': 'Grounded and governed', 'body': '‹ what it is grounded in, who signs off — one line ›',
+         'icon': ml.md.find_icon(ICONS['governed'])},
+        {'head': 'Status', 'body': '‹ production / pilot / discovery ›',
+         'icon': ml.md.find_icon(ICONS['status'])},
+    ]
+
+DEMO = ('What we will show: ‹ 3-4 bullets ›\n'
+        'Entry state: ‹ what is on screen before I start — set up before the talk ›\n'
+        'Exit state: ‹ what they should have seen ›\n'
+        'Fallback: ‹ screenshot or recording to cut to if it fails ›\n')
+
 prs = open_deck()
+ml.set_header_style('h1h2')
+last = lambda: len(prs.slides._sldIdLst) - 1
 
-s = add_slide_at(prs, '1 Column - Subhead', 11)
-set_ph(s, 0, 'Upgrade Validation Assistant')
-set_ph_lines(s, BODY, FIELDS)
-drop_empty_placeholders(s)
+s = ml.icon_text(prs, 'Upgrade Validation Assistant', fields(), subhead='Use case 2')
 set_notes(s, 'Budget 1:00. CORE.')
+move_slide(prs, last(), 11)
 
-d = add_slide_at(prs, 'Divider 1 - Short title', 12)
-set_ph(d, 0, 'DEMO')
-drop_empty_placeholders(d)
-set_notes(d, 'Upgrade Validation Assistant. Budget 4:00. CORE.\\n' + DEMO_FIELDS +
+d = ml.divider(prs, 'DEMO', eyebrow='Use case 2')
+set_notes(d, 'Upgrade Validation Assistant. Budget 4:00. CORE.\n' + DEMO +
              'Security artifact to surface: a guardrail refusing an out-of-scope request.')
+move_slide(prs, last(), 12)
 
-s = add_slide_at(prs, '1 Column - Subhead', 13)
-set_ph(s, 0, 'Moody\\u2019s MCP Server')
-set_ph_lines(s, BODY, FIELDS)
-drop_empty_placeholders(s)
+s = ml.icon_text(prs, 'Moody’s MCP Server', fields(), subhead='Use case 3')
 set_notes(s, 'Budget 1:00. FLEX - the demo can carry this section alone if time is short.')
+move_slide(prs, last(), 13)
 
-d = add_slide_at(prs, 'Divider 1 - Short title', 14)
-set_ph(d, 0, 'DEMO')
-drop_empty_placeholders(d)
-set_notes(d, 'Moody\\u2019s MCP Server. Budget 3:00. CORE.\\n' + DEMO_FIELDS +
+d = ml.divider(prs, 'DEMO', eyebrow='Use case 3')
+set_notes(d, 'Moody’s MCP Server. Budget 3:00. CORE.\n' + DEMO +
              'Security artifact to surface: tool permissions scoped per user and tenant.')
+move_slide(prs, last(), 14)
 
 prs.save(DECK)
-print('use cases 2 and 3 added')
+print('use cases 2 and 3 added at indices 11-14')
 "
 ```
 
-- [ ] **Step 4: Run to verify it passes**
+- [ ] **Step 4: Run to verify it passes, then commit**
+
+```bash
+cd /Users/laumayp/Development/UG2026 && uv run --quiet --with python-pptx python tools/verify_deck.py && git add tools/verify_deck.py && git commit -m "feat: add use cases 2 and 3"
+```
 
 Expected: `PASS - 19 slides in expected order`
 
-- [ ] **Step 5: Commit**
-
-```bash
-cd /Users/laumayp/Development/UG2026 && git add tools/verify_deck.py && git commit -m "feat: add use cases 2 and 3"
-```
-
 ---
 
-### Task 8: Conclusion slide
+### Task 9: Conclusion, back cover, disclaimer
 
-**Files:**
-- Modify: `deck/UG_London_2026.pptx`
-- Modify: `tools/verify_deck.py`
+**Files:** Modify `deck/UG_London_2026.pptx`, `tools/verify_deck.py`
 
-**Interfaces:**
-- Consumes: `add_slide_at`, `set_ph_lines`, `drop_empty_placeholders`, `set_notes`.
-- Produces: slide at index 15, the last of the main line. Appendix follows at 16–19.
+**Interfaces:** Consumes `ml.icon_text`, `ml.back_cover`, `ml.disclaimer`, `move_slide`, `set_notes`, `ICONS`. Produces the conclusion at index 15 and the two closing slides at 20 and 21, after the appendix. Final deck: 22 slides.
 
-- [ ] **Step 1: Add the expectation**
+- [ ] **Step 1: Add three expectations**
 
-Append after the use case 3 demo card:
+The conclusion is inserted at 15; the closing pair is appended after the appendix, so they need no move.
 
 ```python
-    ("Trustworthy, in production", "Executive Summary/Key Takeaways 2"),  # 15
+    ("Trustworthy, in production", "Title Only"),   # 15  (insert after index 14)
+    # ... appendix entries 16-19 stay as they are ...
+    ("Thank you", "Back Cover 1"),                  # 20
+    (None, "Disclaimer"),                           # 21  layout-only: see below
 ```
+
+The disclaimer's signature is `None` deliberately. That slide has **zero shapes of its own** — the legal copy is a fixed shape on the `Disclaimer` layout, so slide-level text extraction returns an empty string and any signature would fail. Checking the layout name is the real assertion here.
 
 - [ ] **Step 2: Run to verify it fails**
 
-Expected: FAIL — count 19 vs 20.
+Expected: FAIL — count 19 vs 22.
 
-- [ ] **Step 3: Discover the layout's placeholders**
-
-```bash
-cd /Users/laumayp/Development/UG2026 && python3 -c "
-import sys; sys.path.insert(0, 'tools')
-from deck import open_deck, describe_layout
-describe_layout(open_deck(), 'Executive Summary/Key Takeaways 2')
-"
-```
-
-- [ ] **Step 4: Author the slide**
+- [ ] **Step 3: Author all three**
 
 ```bash
-cd /Users/laumayp/Development/UG2026 && python3 -c "
-import sys; sys.path.insert(0, 'tools')
-from deck import open_deck, add_slide_at, set_ph, set_ph_lines, drop_empty_placeholders, set_notes, DECK
-BODY = 1   # <-- replace with the body idx printed in Step 3
+export SKILL=/Users/laumayp/.claude/plugins/cache/ibu-life-marketplace/shared-life-beta-ai-skills/0.8.0/skills/implementation-moodys-pptx
+export MOODYS_ASSETS_DIR=/Users/laumayp/.claude/plugins/data/shared-life-beta-ai-skills-ibu-life-marketplace/moodys-assets
+cd /Users/laumayp/Development/UG2026 && uv run --quiet --with python-pptx --with cairosvg python -c "
+import sys, os; sys.path.insert(0, os.environ['SKILL'] + '/scripts'); sys.path.insert(0, 'tools')
+import moodys_layouts as ml
+from deck import open_deck, move_slide, set_notes, DECK
+from icons import ICONS
 prs = open_deck()
-s = add_slide_at(prs, 'Executive Summary/Key Takeaways 2', 15)
-set_ph(s, 0, 'Trustworthy, in production')
-set_ph_lines(s, BODY, [
-    'Grounded, not guessing \\u2014 answers cited to AXIS documentation and your own dataset.',
-    'Governed access \\u2014 security is platform engineering, not prompt engineering.',
-    'Human sign-off \\u2014 actuaries stay in control of anything touching a reported number.',
-    'Transparent and auditable \\u2014 cited outputs and logged actions your regulator can follow.',
-    'Layer three, the open platform, is a conversation we want to start. With this room.',
-])
-drop_empty_placeholders(s)
+ml.set_header_style('h1h2')
+
+s = ml.icon_text(prs, 'Trustworthy, in production', [
+    {'head': 'Grounded, not guessing',
+     'body': 'Answers cited to AXIS documentation and your own dataset.',
+     'icon': ml.md.find_icon(ICONS['grounded'])},
+    {'head': 'Governed access',
+     'body': 'Security is platform engineering, not prompt engineering.',
+     'icon': ml.md.find_icon(ICONS['access'])},
+    {'head': 'Human sign-off',
+     'body': 'Actuaries stay in control of anything touching a reported number.',
+     'icon': ml.md.find_icon(ICONS['human'])},
+    {'head': 'Transparent and auditable',
+     'body': 'Cited outputs and logged actions your regulator can follow.',
+     'icon': ml.md.find_icon(ICONS['audit'])},
+    {'head': 'Layer three is open',
+     'body': 'The open platform is a conversation we want to start. With this room.',
+     'icon': ml.md.find_icon(ICONS['invite'])},
+], subhead='Four principles, and one invitation')
 set_notes(s, (
-    'Budget 1:30. CORE.\\n'
-    'Close on the invitation, not the summary. This audience is exactly who layer three is for.\\n'
-    'Appendix follows: why Moody\\u2019s credentials, the data foundation, and the actuarial AI curve.'
+    'Budget 1:30. CORE.\n'
+    'Close on the invitation, not the summary. This audience is exactly who layer three is for.\n'
+    'Appendix follows: why Moody’s credentials, the data foundation, the actuarial AI curve.'
 ))
+move_slide(prs, len(prs.slides._sldIdLst) - 1, 15)
+
+ml.back_cover(prs, 'Thank you')
+ml.disclaimer(prs)
 prs.save(DECK)
-print('conclusion added')
+print('total slides:', len(prs.slides._sldIdLst))
 "
 ```
 
-- [ ] **Step 5: Run to verify it passes**
+Expected: `total slides: 22`
 
-Expected: `PASS - 20 slides in expected order`
-
-- [ ] **Step 6: Commit**
+- [ ] **Step 4: Run to verify it passes, then commit**
 
 ```bash
-cd /Users/laumayp/Development/UG2026 && git add tools/verify_deck.py && git commit -m "feat: add conclusion slide"
+cd /Users/laumayp/Development/UG2026 && uv run --quiet --with python-pptx python tools/verify_deck.py && git add tools/verify_deck.py && git commit -m "feat: add conclusion, back cover and disclaimer"
 ```
+
+Expected: `PASS - 22 slides in expected order`
 
 ---
 
-### Task 9: Speaker notes on reused slides
+### Task 10: Speaker notes on the reused slides
 
-The six reused slides arrived without timing or cut marks. Every slide must carry its budget so the deck is rehearsable.
+The six reused slides arrived without timing or cut marks. Every main-line slide must carry its budget so the deck is rehearsable.
 
-**Files:**
-- Modify: `deck/UG_London_2026.pptx`
-- Create: `tools/verify_notes.py`
+**Files:** Modify `deck/UG_London_2026.pptx`, create `tools/verify_notes.py`
 
-**Interfaces:**
-- Consumes: `open_deck`, `set_notes`.
-- Produces: `tools/verify_notes.py`, runnable as `python3 tools/verify_notes.py`, asserting every main-line slide (0–15) has a `Budget` line in its notes.
+**Interfaces:** Produces `tools/verify_notes.py`, asserting every main-line slide (0–15) has a `Budget` line and a CORE/FLEX mark.
 
 - [ ] **Step 1: Write the notes verifier**
 
@@ -829,13 +823,13 @@ Create `tools/verify_notes.py`:
 
 ```python
 #!/usr/bin/env python3
-"""Assert every main-line slide carries a timing budget in its speaker notes."""
+"""Assert every main-line slide carries a timing budget and a cut mark."""
 import sys
 
 from pptx import Presentation
 
 DECK = "deck/UG_London_2026.pptx"
-MAIN_LINE = 16
+MAIN_LINE = 16   # slides 16-21 are appendix, back cover and disclaimer
 
 
 def main():
@@ -867,28 +861,27 @@ if __name__ == "__main__":
 - [ ] **Step 2: Run to verify it fails**
 
 ```bash
-cd /Users/laumayp/Development/UG2026 && python3 tools/verify_notes.py
+cd /Users/laumayp/Development/UG2026 && uv run --quiet --with python-pptx python tools/verify_notes.py
 ```
 
-Expected: FAIL — the six reused slides (1, 2, 3, 4, 5, 7) have no notes, and the title slide's note has no CORE/FLEX mark.
+Expected: FAIL — the six reused slides (1, 2, 3, 4, 5, 7) have no notes.
 
-- [ ] **Step 3: Add notes to the reused slides and the title**
+- [ ] **Step 3: Add notes to the reused slides**
 
 ```bash
-cd /Users/laumayp/Development/UG2026 && python3 -c "
+cd /Users/laumayp/Development/UG2026 && uv run --quiet --with python-pptx python -c "
 import sys; sys.path.insert(0, 'tools')
 from deck import open_deck, set_notes, DECK
 NOTES = {
-  0: 'Budget 0:30. CORE. Speaker names to be confirmed. 30 minutes including three live demos.',
-  1: 'Budget 1:30. FLEX - can be cut to a 20-second verbal framing.\\n'
-     'Open Moody\\u2019s-wide for credibility: four agentic use cases already running.',
-  2: 'Budget 1:30. FLEX - overlaps the previous slide and the next; first to cut.\\n'
+  1: 'Budget 1:30. FLEX - can be cut to a 20-second verbal framing.\n'
+     'Open Moody’s-wide for credibility: four agentic use cases already running.',
+  2: 'Budget 1:30. FLEX - overlaps the previous slide and the next; first to cut.\n'
      'The three tiers: assistants, agentic solutions, AI-ready data.',
   3: 'Budget 1:30. CORE. Note MCP Servers among the channels - this plants use case 3.',
-  4: 'Budget 2:00. CORE. This is the pivot from Moody\\u2019s-wide to Life and AXIS.\\n'
+  4: 'Budget 2:00. CORE. This is the pivot from Moody’s-wide to Life and AXIS.\n'
      'Layer three is flagged here and cashed in at the conclusion.',
   5: 'Budget 1:30. CORE. Frontier tools, reusable blocks, built with clients.',
-  7: 'Budget 1:30. CORE. The four principles. This is the trust spine the use cases hang from.',
+  7: 'Budget 1:30. CORE. The four principles. The trust spine the use cases hang from.',
 }
 prs = open_deck()
 slides = list(prs.slides)
@@ -899,35 +892,41 @@ print('notes written to', len(NOTES), 'slides')
 "
 ```
 
-- [ ] **Step 4: Run both verifiers to confirm they pass**
+- [ ] **Step 4: Run both verifiers, then commit**
 
 ```bash
-cd /Users/laumayp/Development/UG2026 && python3 tools/verify_deck.py && python3 tools/verify_notes.py
+cd /Users/laumayp/Development/UG2026 && uv run --quiet --with python-pptx python tools/verify_deck.py && uv run --quiet --with python-pptx python tools/verify_notes.py && git add tools/verify_notes.py && git commit -m "feat: add timing budgets and cut marks to speaker notes"
 ```
 
-Expected: `PASS - 20 slides in expected order` then `PASS - all 16 main-line slides carry budget and cut marks`
-
-- [ ] **Step 5: Commit**
-
-```bash
-cd /Users/laumayp/Development/UG2026 && git add tools/verify_notes.py && git commit -m "feat: add timing budgets and cut marks to speaker notes"
-```
+Expected: `PASS - 22 slides in expected order` then `PASS - all 16 main-line slides carry budget and cut marks`
 
 ---
 
-### Task 10: Render check and README correction
+### Task 11: QA, render check, and README correction
 
-Structural verification cannot see overflowing text or a placeholder that renders as prompt text. This task looks at the deck.
+**Files:** Create `build/UG_London_2026.pdf` (git-ignored), modify `README.md`
 
-**Files:**
-- Create: `build/UG_London_2026.pdf` (generated, git-ignored)
-- Modify: `README.md`
+- [ ] **Step 1: Run the skill's structural QA**
 
-**Interfaces:**
-- Consumes: the finished deck.
-- Produces: a PDF render for visual inspection; a README abstract matching the running order.
+```bash
+export SKILL=/Users/laumayp/.claude/plugins/cache/ibu-life-marketplace/shared-life-beta-ai-skills/0.8.0/skills/implementation-moodys-pptx
+cd /Users/laumayp/Development/UG2026 && uv run --quiet --with python-pptx python "$SKILL/scripts/qa_check.py" deck/UG_London_2026.pptx
+```
 
-- [ ] **Step 1: Render to PDF**
+Expected: `errors: 0`.
+
+**Warnings need triage, not blanket fixing.** The six reused slides carry roughly 13 pre-existing overflow and off-slide warnings — those are approved corporate slides and are left alone. Any warning on an authored slide (0, 6, 8, 9–15, 20, 21) is yours: fix it, re-run, repeat.
+
+- [ ] **Step 2: Check the text came out right**
+
+```bash
+export SKILL=/Users/laumayp/.claude/plugins/cache/ibu-life-marketplace/shared-life-beta-ai-skills/0.8.0/skills/implementation-moodys-pptx
+cd /Users/laumayp/Development/UG2026 && uv run --quiet --with python-pptx python "$SKILL/scripts/extract_text.py" deck/UG_London_2026.pptx | head -80
+```
+
+Confirm: no French text survives on slide 6; every `‹ … ›` prompt is intact and none was accidentally filled with invented product detail.
+
+- [ ] **Step 3: Render to PDF**
 
 ```bash
 cd /Users/laumayp/Development/UG2026 && mkdir -p build && soffice --headless --convert-to pdf --outdir build deck/UG_London_2026.pptx && ls -la build/
@@ -935,31 +934,26 @@ cd /Users/laumayp/Development/UG2026 && mkdir -p build && soffice --headless --c
 
 Expected: `build/UG_London_2026.pdf` exists. LibreOffice renders the Moody's template imperfectly — judge layout and overflow, not typography.
 
-- [ ] **Step 2: Inspect every new slide**
+- [ ] **Step 4: Inspect every authored slide**
 
-Read `build/UG_London_2026.pdf` pages 1, 7, 9, 10, 11, 12, 13, 14, 15, 16 (the ten authored slides). For each, confirm: the title is present and unclipped, body text does not overflow its box, and no empty placeholder is rendering as prompt text ("Click to edit…").
+Read pages 1, 7, 9, 10, 11, 12, 13, 14, 15, 16, 21 and 22 of the PDF (the twelve authored slides). For each confirm: title present and unclipped; body text does not overflow; **icons render as real glyphs, not bright-blue circles**. A circle means the icon name in `tools/icons.py` did not resolve — fix the name, re-run Task 3 Step 3, re-author that slide.
 
-Record anything wrong and fix it in `deck/UG_London_2026.pptx` before continuing. Re-render and re-inspect after each fix.
+Fix anything wrong, re-render, re-inspect.
 
-- [ ] **Step 3: Correct the README abstract**
+- [ ] **Step 5: Correct the README abstract**
 
-The published abstract says the talk *turns to* security last. The agreed running order puts security at section 5, before the use cases. Update the abstract in `README.md` so the description matches the talk. Change only the ordering claim — leave the rest of the sentence intact:
+The published abstract says the talk *turns to* security last; the agreed running order puts it at section 5, before the use cases. Change only the ordering claim:
 
 Replace `then turn to what matters most for regulated teams: securing AI in production, with concrete examples over technical detail.` with `and set out what matters most for regulated teams — securing AI in production, with concrete examples over technical detail — before showing the work.`
 
-- [ ] **Step 4: Run both verifiers one last time**
+- [ ] **Step 6: Final verification and commit**
 
 ```bash
-cd /Users/laumayp/Development/UG2026 && python3 tools/verify_deck.py && python3 tools/verify_notes.py
+export SKILL=/Users/laumayp/.claude/plugins/cache/ibu-life-marketplace/shared-life-beta-ai-skills/0.8.0/skills/implementation-moodys-pptx
+cd /Users/laumayp/Development/UG2026 && uv run --quiet --with python-pptx python tools/verify_deck.py && uv run --quiet --with python-pptx python tools/verify_notes.py && uv run --quiet --with python-pptx python "$SKILL/scripts/qa_check.py" deck/UG_London_2026.pptx && git add README.md && git commit -m "docs: align README abstract with the talk running order"
 ```
 
-Expected: both PASS.
-
-- [ ] **Step 5: Commit**
-
-```bash
-cd /Users/laumayp/Development/UG2026 && git add README.md && git commit -m "docs: align README abstract with the talk running order"
-```
+Expected: both verifiers PASS and `errors: 0`.
 
 ---
 
@@ -968,6 +962,7 @@ cd /Users/laumayp/Development/UG2026 && git add README.md && git commit -m "docs
 Left deliberately unfilled, for the author rather than the implementer:
 
 1. **Speaker names** on slide 0 — not recorded anywhere in the repo.
-2. **All `‹ … ›` fields** on the six use case slides and their demo notes — none of these products are described in this repo, and inventing their capabilities would be worse than leaving the prompts visible.
-3. **The finished deck is not versioned.** `resources/` is tracked, but `deck/` is ignored because the working file is rewritten by every authoring task. Once the deck is final, commit it deliberately with `git add -f deck/UG_London_2026.pptx` — one commit of one binary, rather than eight.
-4. **Use case 1's name** — built as "RiskIntegrity for IFRS 17 Navigator" per the README. If "Infoweb Navigator" is the real product, change it in `EXPECTED` and on slides 9 and 10.
+2. **All `‹ … ›` fields** on the six use case slides and their demo notes. None of these products is described in this repo, and inventing their capabilities would be worse than leaving the prompts visible.
+3. **The finished deck is not versioned.** `resources/` is tracked; `deck/` is ignored because the working file is rewritten by every authoring task. Once final, commit it deliberately with `git add -f deck/UG_London_2026.pptx` — one commit of one binary, rather than nine.
+4. **Use case 1's name** — built as "RiskIntegrity for IFRS 17 Navigator" per the README. If "Infoweb Navigator" is right, change it in `EXPECTED` and on slides 9 and 10.
+5. **The reused slides' QA warnings** are pre-existing and untouched. If they should be fixed, that is a separate piece of work on corporate-approved slides.

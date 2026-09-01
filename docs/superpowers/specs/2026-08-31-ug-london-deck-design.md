@@ -17,38 +17,60 @@ Because the audience is a user group, the deck closes on the strategy's third la
 
 ## Build method
 
-**Start from a duplicate of `resources/Consolidated GenAI common slides.pptx`.** Delete unused slides, reorder the survivors, author the new slides on the deck's own layouts.
+**Start from a duplicate of `resources/Consolidated GenAI common slides.pptx`**, reorder the existing slides into the spine, then author the new slides with the `implementation-moodys-pptx` skill's `moodys_layouts` (`ml`) builders — opened directly on that deck, with **no `reset_slides`**, which the skill supports for editing an existing deck.
 
-This is chosen over copying slides between the two source files. Both decks descend from the same Moody's template — identical layout names (`Cover 1`, `Agenda 1–4`, `Divider 1`, `Executive Summary/Key Takeaways 1–5`, `1/2/3/4 Column - Subhead`) — but they differ structurally: Consolidated has 2 masters, 155 layouts and 42 media parts; DEVOXX has 1 master, 85 layouts and 74. Cross-file slide copying reconciles masters, layouts, media and relationship IDs, and commonly drops or restyles content.
+This works because the Consolidated deck *is* the skill's official template. Verified, not assumed: the two files have byte-identical theme colour schemes, the same `Disclaimer` layout (`slideLayout64.xml`, 10 650 characters), and every one of the bundled template's 64 master-1 layout names is present in the Consolidated deck. `ml._layout()` resolves layouts by name against `slide_masters[0]`, so each builder lands on the correct official layout.
 
-Nothing is copied out of the DEVOXX file. Its contribution is text for slide 6, which is being translated from French and condensed from two slides into one — so re-authoring on a Consolidated layout loses nothing and guarantees the result is on-template. If a specific DEVOXX diagram is wanted later (the agentic architecture build-up, the guardrails belt), export it as an image and place it deliberately.
+Building this way rather than hand-filling placeholders gets the TOOLKIT type ramp, the light/dark rhythm and the official icon set for free.
 
-Work through the `shared-life-beta-ai-skills:implementation-moodys-pptx` skill, which carries the template conventions.
+### Blocker: slide IDs must be renumbered first
+
+The Consolidated deck's `p:sldId` values are pathological — `[…, 2147483635, 2147483646, …]`, one below the int32 ceiling of 2147483647. python-pptx assigns `max(ids) + 1` to each added slide, so **the deck accepts exactly one new slide and then raises `ValueError`**. Renumbering all slide IDs to a low contiguous range (256, 257, …) before any insertion fixes it permanently. Slide IDs are arbitrary internal identifiers, independent of the `r:id` relationships, so renumbering is lossless. This must happen before any authoring step.
+
+### Not from DEVOXX
+
+Nothing is copied out of the DEVOXX file — it has 1 master to Consolidated's 2, and different media. Its only contribution is text for slide 6, which is translated from French and condensed from two slides into one, so re-authoring it as an `ml.columns` slide loses nothing. If a specific DEVOXX diagram is wanted later (the agentic architecture build-up, the guardrails belt), export it as an image and place it deliberately.
+
+### Skill obligations
+
+- `ml.set_header_style("h1h2")` once before authoring; every content builder gets a `subhead`.
+- `ml.disclaimer(prs)` is **mandatory and always last**, preceded by `ml.back_cover(prs, "Thank you")`.
+- Icons on every item-based builder. The shell needs `MOODYS_ASSETS_DIR=/Users/laumayp/.claude/plugins/data/shared-life-beta-ai-skills-ibu-life-marketplace/moodys-assets`, because `CLAUDE_PLUGIN_DATA` is not set outside the skill's own runtime. Resolve every name with `ml.md.find_icons()` first — `shield` and `check` return nothing, and an unresolved name degrades silently to a blue circle.
+- Run everything through `uv run --with python-pptx` (add `--with cairosvg` for icons).
 
 ## Slide map
 
-Sources: `C-n` = Consolidated slide *n*, `D-n` = DEVOXX slide *n*. Every reused slide keeps its existing content unchanged; only the slide number and any footer are corrected for the new running order. Slides marked ★ already carry the exact section title requested, so they need no edit at all.
+Sources: `C-n` = Consolidated slide *n*, `D-n` = DEVOXX slide *n*. Every reused slide keeps its existing content unchanged. Slides marked ★ already carry the exact section title requested, so they need no edit at all. Builders choose their own official layout — do not override it.
 
-| # | Section | Source | Action | Layout |
+| # | Section | Source | Action | Builder |
 |---|---|---|---|---|
-| 0 | Title | — | New | `Cover 1` |
+| 0 | Title | — | New | `ml.cover` |
 | 1 | 1. Intro | C-1 | Reuse | — |
 | 2 | 1. Intro | C-5 | Reuse | — |
 | 3 | 2. Every stage of AI | C-4 | Reuse ★ | — |
 | 4 | 3. Strategy, three layers | C-6 | Reuse ★ | — |
 | 5 | 4. Our approach | C-8 | Reuse ★ | — |
-| 6 | 5. Security landscape | D-6, D-9 | New, translated | `2 Column, Equal - Subhead` |
+| 6 | 5. Security landscape | D-6, D-9 | New, translated | `ml.columns` |
 | 7 | 5. Security at Moody's | C-9 | Reuse | — |
-| 8 | 6. Three use cases | — | New | `Agenda 3` |
-| 9 | 7. IFRS 17 Navigator | — | New placeholder | `1 Column - Subhead` |
-| 10 | 7. Demo | — | New demo card | `Divider 1 - Short title` |
-| 11 | 8. UVA | — | New placeholder | `1 Column - Subhead` |
-| 12 | 8. Demo | — | New demo card | `Divider 1 - Short title` |
-| 13 | 9. MCP Server | — | New placeholder | `1 Column - Subhead` |
-| 14 | 9. Demo | — | New demo card | `Divider 1 - Short title` |
-| 15 | 10. Conclusion | — | New | `Executive Summary/Key Takeaways 2` |
+| 8 | 6. Three use cases | — | New | `ml.columns` |
+| 9 | 7. IFRS 17 Navigator | — | New placeholder | `ml.icon_text` |
+| 10 | 7. Demo | — | New demo card | `ml.divider` |
+| 11 | 8. UVA | — | New placeholder | `ml.icon_text` |
+| 12 | 8. Demo | — | New demo card | `ml.divider` |
+| 13 | 9. MCP Server | — | New placeholder | `ml.icon_text` |
+| 14 | 9. Demo | — | New demo card | `ml.divider` |
+| 15 | 10. Conclusion | — | New | `ml.icon_text` |
 
-Consolidated slides 2, 3, 7 and 10 are not used in the main line. Keep them in an appendix after slide 15 rather than deleting: C-3 (data foundation, 590M+ entities) and C-10 (Why Moody's, 130+/100+/30+) are the natural answers to a credibility challenge from the floor, and C-7 (the Actuarial AI Curve) answers "where should we start?"
+Consolidated slides 2, 3, 7 and 10 are not used in the main line. Keep them as an appendix at indices 16–19 rather than deleting: C-3 (data foundation, 590M+ entities) and C-10 (Why Moody's, 130+/100+/30+) are the natural answers to a credibility challenge from the floor, and C-7 (the Actuarial AI Curve) answers "where should we start?"
+
+Two closing slides follow the appendix, giving **22 slides in total**:
+
+| # | Slide | Builder |
+|---|---|---|
+| 20 | Thank you | `ml.back_cover` |
+| 21 | Legal disclaimer | `ml.disclaimer` |
+
+The disclaimer is mandatory and must be the final slide.
 
 ### Two links that come for free
 
@@ -61,7 +83,7 @@ Consolidated slides 2, 3, 7 and 10 are not used in the main line. Keep them in a
 Talk title, event, date, speaker names. Speaker attribution is unresolved (see Open items).
 
 ### Slide 6 — The security landscape
-Condensed and translated from D-6 and D-9. Two columns:
+Condensed and translated from D-6 and D-9, as two `ml.columns` items, each with an icon:
 
 - **Regulatory pressure.** The EU AI Act as precursor: a deliberately broad definition of AI covering both generative and autonomous-action tooling, with obligations scaling to the risk posed to the user. A worldwide trend, not a European one.
 - **The OWASP GenAI Security Project.** The working checklist. Show the entries that bite in agentic systems — LLM01 Prompt Injection, LLM02 Sensitive Information Disclosure, LLM06 Excessive Agency, LLM07 System Prompt Leakage — and note each carries vulnerability, scenario and mitigation. The full ten go in this slide's speaker notes, where they are available for a question from the floor without costing slide space.
@@ -74,7 +96,7 @@ Already English, already on-brand, already Life-specific: grounded not guessing;
 The D-7/D-8 risk-and-control matrix, labelled *"L'exemple Moody's"*, covers similar ground and would need translating. Hold it in the appendix as the answer to a governance question, not in the main line.
 
 ### Slide 8 — Three use cases, one foundation
-Three columns, each tagged to its strategy layer:
+Three `ml.columns` items, each with an icon, each tagged to its strategy layer:
 
 | Use case | Layer | Note |
 |---|---|---|
@@ -83,7 +105,7 @@ Three columns, each tagged to its strategy layer:
 | Moody's MCP Server | Open platform | Your agents, our data |
 
 ### Slides 9, 11, 13 — Use case placeholders
-Same four fields each, to be filled once the products are briefed:
+An `ml.icon_text` slide each, one item and one icon per field. Same four fields every time, to be filled once the products are briefed:
 
 1. The workflow as it runs today, and where it hurts
 2. What the assistant does
@@ -91,7 +113,7 @@ Same four fields each, to be filled once the products are briefed:
 4. Status: production, pilot, or in discovery
 
 ### Slides 10, 12, 14 — Demo cards
-Full-bleed divider carrying only the word DEMO — a deliberate "look up from the slides" cue. All scaffolding below lives in the **speaker notes**, not on the slide face: the audience must never see the fallback plan, and a divider has no room for it in any case. Each card's notes carry:
+An `ml.divider` (which resolves to `Divider 3 - Short title`) carrying the word DEMO and the use case name as its eyebrow — a deliberate "look up from the slides" cue. All scaffolding below lives in the **speaker notes**, not on the slide face: the audience must never see the fallback plan, and a divider has no room for it in any case. Each card's notes carry:
 
 - **What we'll show** — 3–4 bullets
 - **Entry state** — what is on screen when the demo starts, so it can be set up before the talk
@@ -102,7 +124,9 @@ Full-bleed divider carrying only the word DEMO — a deliberate "look up from th
 Since section 5 is only two slides and carries no demo of its own, surface one security artifact inside each demo — a citation in Navigator, a guardrail in UVA, scoped tool permissions on the MCP server. This is the cheapest way to honour the abstract's promise of concrete security examples without spending more slides.
 
 ### Slide 15 — Conclusion
-Restate the four Responsible AI principles as takeaways, then make the ask: layer three, the open platform, is a conversation Moody's wants to start with this room. Ends on an invitation rather than a summary.
+An `ml.icon_text` slide restating the four Responsible AI principles as takeaways, then making the ask: layer three, the open platform, is a conversation Moody's wants to start with this room. Ends on an invitation rather than a summary.
+
+The originally specified `Executive Summary/Key Takeaways 2` layout is dropped: no `ml` builder targets it, and dropping to `md` primitives for one slide would cost more than it returns.
 
 ## Timing budget
 
