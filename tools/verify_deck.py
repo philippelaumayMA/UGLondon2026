@@ -28,11 +28,12 @@ EXPECTED = [
     ("OUR APPROACH", None),               # 5  C-8  section 4
     ("OWASP", "Title Only"),              # 6  security landscape
     ("RESPONSIBLE AI", None),             # 7  C-9  section 5b
+    ("one foundation", "Title Only"),     # 8  three use cases
     # --- appendix ---
-    ("Driven by Perspective", None),      # 8  C-2
-    ("Content Foundation", None),         # 9  C-3
-    ("ACTUARIAL AI CURVE", None),         # 10 C-7
-    ("WHY MOODY", None),                  # 11 C-10
+    ("Driven by Perspective", None),      # 9  C-2
+    ("Content Foundation", None),         # 10 C-3
+    ("ACTUARIAL AI CURVE", None),         # 11 C-7
+    ("WHY MOODY", None),                  # 12 C-10
 ]
 
 
