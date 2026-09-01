@@ -923,19 +923,29 @@ cd /Users/laumayp/Development/UG2026 && uv run --quiet --with python-pptx python
 
 Confirm: no French text survives on slide 6; every `‹ … ›` prompt is intact and none was accidentally filled with invented product detail.
 
-- [ ] **Step 3: Render to PDF**
+- [x] **Step 3: Render to PDF — NOT POSSIBLE ON THIS MACHINE**
 
 ```bash
 cd /Users/laumayp/Development/UG2026 && mkdir -p build && soffice --headless --convert-to pdf --outdir build deck/UG_London_2026.pptx && ls -la build/
 ```
 
-Expected: `build/UG_London_2026.pdf` exists. LibreOffice renders the Moody's template imperfectly — judge layout and overflow, not typography.
+**This does not work here.** `soffice` starts, sits at 0% CPU without touching the output directory, and is SIGKILLed by the OS (exit 137). Reproduced three times: sandboxed, sandboxed with an isolated `-env:UserInstallation` profile, and unsandboxed. The skill's `render.py` fares no better — its macOS PowerPoint backend runs the AppleScript without error but writes no files, then falls through to LibreOffice and reports `RENDER_BACKEND=none`.
 
-- [ ] **Step 4: Inspect every authored slide**
+Do not spend more time on this. Anyone re-running the plan should skip to Step 4.
 
-Read pages 1, 7, 9, 10, 11, 12, 13, 14, 15, 16, 21 and 22 of the PDF (the twelve authored slides). For each confirm: title present and unclipped; body text does not overflow; **icons render as real glyphs, not bright-blue circles**. A circle means the icon name in `tools/icons.py` did not resolve — fix the name, re-run Task 3 Step 3, re-author that slide.
+- [x] **Step 4: Verify the authored slides — done without a renderer**
 
-Fix anything wrong, re-render, re-inspect.
+The three things Step 4 existed to catch are all checkable from the file itself, and two of the checks are stricter than eyeballing a LibreOffice approximation would have been:
+
+| Original visual check | Replaced by |
+|---|---|
+| Body text does not overflow; titles unclipped | `qa_check.py` — its overflow and off-slide detectors flag **zero** issues on any authored slide (all 13 warnings sit on reused corporate slides 1, 2, 3, 17, 18) |
+| Icons render as real glyphs, not blue circles | `tools/verify_slide_icons.py` — counts `<p:pic>` against `prst="ellipse"` per slide. 22 real icons, 0 placeholders |
+| Icons resolve at all | `tools/verify_icons.py` — rasterizes each name rather than only resolving it |
+
+`verify_slide_icons.py` is the important one. `_icon_or_dot` substitutes a blue ellipse of identical footprint whenever an icon fails to rasterize; that substitution passes `qa_check.py`, extracts as no text, and is invisible to every other check here. Counting the two shape kinds catches it deterministically.
+
+**Still owed:** nobody has looked at this deck. Typography, spacing rhythm and the icon glyph choices are unverified. Open it in PowerPoint before the talk.
 
 - [ ] **Step 5: Correct the README abstract**
 
