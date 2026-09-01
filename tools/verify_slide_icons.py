@@ -20,12 +20,12 @@ from pptx import Presentation
 DECK = "deck/UG_London_2026.pptx"
 
 EXPECTED_ICONS = {
-    6: 2,    # security landscape  - ml.columns, 2 items
-    8: 3,    # three use cases     - ml.columns, 3 items
-    9: 4,    # use case 1 context  - ml.icon_text, 4 fields
-    11: 4,   # use case 2 context
-    13: 4,   # use case 3 context
-    15: 5,   # conclusion          - ml.icon_text, 5 items
+    7: 2,    # security landscape  - ml.columns, 2 items
+    9: 3,    # three use cases     - ml.columns, 3 items
+    10: 4,   # use case 1 context  - ml.icon_text, 4 fields
+    12: 4,   # use case 2 context
+    14: 4,   # use case 3 context
+    16: 5,   # conclusion          - ml.icon_text, 5 items
 }
 
 

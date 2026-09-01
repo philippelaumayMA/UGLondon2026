@@ -21,36 +21,37 @@ DECK = "deck/UG_London_2026.pptx"
 EXPECTED = [
     # --- spine ---
     ("Bringing Trustworthy GenAI to Insurance", "Cover 1"),  # 0  title
-    ("Process Automations", None),        # 1  C-1  intro: agentic solutions
-    ("AI Solution Suite", None),          # 2  C-5  intro: the three tiers
-    ("Every Stage of AI Maturity", None), # 3  C-4  section 2
-    ("in three layers", None),            # 4  C-6  section 3
-    ("OUR APPROACH", None),               # 5  C-8  section 4
-    ("OWASP", "Title Only"),              # 6  security landscape
-    ("RESPONSIBLE AI", None),             # 7  C-9  section 5b
-    ("one foundation", "Title Only"),     # 8  three use cases
-    ("RiskIntegrity for IFRS 17 Navigator", "Title Only"),  # 9
-    ("DEMO", "Divider 3 - Short title"),                    # 10
+    ("Three layers, and how we build", "Agenda 2"),          # 1  agenda
+    ("Process Automations", None),        # 2  C-1  intro: agentic solutions
+    ("AI Solution Suite", None),          # 3  C-5  intro: the three tiers
+    ("Every Stage of AI Maturity", None), # 4  C-4  section 2
+    ("in three layers", None),            # 5  C-6  section 3
+    ("OUR APPROACH", None),               # 6  C-8  section 4
+    ("OWASP", "Title Only"),              # 7  security landscape
+    ("RESPONSIBLE AI", None),             # 8  C-9  section 5b
+    ("one foundation", "Title Only"),     # 9  three use cases
+    ("RiskIntegrity for IFRS 17 Navigator", "Title Only"),  # 10
+    ("DEMO", "Divider 3 - Short title"),                    # 11
     # All three demo cards carry the same on-slide word, so "DEMO" is not a
     # unique signature -- two swapped demo cards would pass. The unique context
     # slide on either side pins the ordering, which is enough here.
-    ("Upgrade Validation Assistant", "Title Only"),         # 11
-    ("DEMO", "Divider 3 - Short title"),                    # 12
-    ("MCP Server", "Title Only"),                           # 13
-    ("DEMO", "Divider 3 - Short title"),                    # 14
-    ("Trustworthy, in production", "Title Only"),           # 15 conclusion
+    ("Upgrade Validation Assistant", "Title Only"),         # 12
+    ("DEMO", "Divider 3 - Short title"),                    # 13
+    ("MCP Server", "Title Only"),                           # 14
+    ("DEMO", "Divider 3 - Short title"),                    # 15
+    ("Trustworthy, in production", "Title Only"),           # 16 conclusion
     # --- appendix ---
-    ("Driven by Perspective", None),      # 16 C-2
-    ("Content Foundation", None),         # 17 C-3
-    ("ACTUARIAL AI CURVE", None),         # 18 C-7
-    ("WHY MOODY", None),                  # 19 C-10
+    ("Driven by Perspective", None),      # 17 C-2
+    ("Content Foundation", None),         # 18 C-3
+    ("ACTUARIAL AI CURVE", None),         # 19 C-7
+    ("WHY MOODY", None),                  # 20 C-10
     # --- closing ---
-    ("Thank you", "Back Cover 1"),        # 20
+    ("Thank you", "Back Cover 1"),        # 21
     # The disclaimer's signature is None deliberately: that slide has zero
     # shapes of its own, because the legal copy is a fixed shape on the
     # Disclaimer layout. Slide-level text extraction returns "", so any
     # signature would fail; the layout name is the real assertion.
-    (None, "Disclaimer"),                 # 21
+    (None, "Disclaimer"),                 # 22
 ]
 
 

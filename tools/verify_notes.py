@@ -5,7 +5,7 @@ import sys
 from pptx import Presentation
 
 DECK = "deck/UG_London_2026.pptx"
-MAIN_LINE = 16   # slides 16-21 are appendix, back cover and disclaimer
+MAIN_LINE = 17   # slides 17-22 are appendix, back cover and disclaimer
 
 
 def main():
