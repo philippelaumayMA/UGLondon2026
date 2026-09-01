@@ -19,16 +19,18 @@ from pptx import Presentation
 DECK = "deck/UG_London_2026.pptx"
 
 EXPECTED = [
-    ("Process Automations", None),        # C-1
-    ("Driven by Perspective", None),      # C-2
-    ("Content Foundation", None),         # C-3
-    ("Every Stage of AI Maturity", None), # C-4
-    ("AI Solution Suite", None),          # C-5
-    ("in three layers", None),            # C-6
-    ("ACTUARIAL AI CURVE", None),         # C-7
-    ("OUR APPROACH", None),               # C-8
-    ("RESPONSIBLE AI", None),             # C-9
-    ("WHY MOODY", None),                  # C-10
+    # --- spine ---
+    ("Process Automations", None),        # 0  C-1  intro: agentic solutions
+    ("AI Solution Suite", None),          # 1  C-5  intro: the three tiers
+    ("Every Stage of AI Maturity", None), # 2  C-4  section 2
+    ("in three layers", None),            # 3  C-6  section 3
+    ("OUR APPROACH", None),               # 4  C-8  section 4
+    ("RESPONSIBLE AI", None),             # 5  C-9  section 5b
+    # --- appendix ---
+    ("Driven by Perspective", None),      # 6  C-2
+    ("Content Foundation", None),         # 7  C-3
+    ("ACTUARIAL AI CURVE", None),         # 8  C-7
+    ("WHY MOODY", None),                  # 9  C-10
 ]
 
 
